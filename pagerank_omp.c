@@ -28,7 +28,7 @@ void pagerank_omp(const int num_threads, const graph *g, const graph *converse,
   double *out_w  = malloc(sizeof(double) * n);
   memset(out_w, 0, sizeof(double) * n);
 
-  int *start_v = malloc(sizeof(int) * (num_threads + 1));
+   int *start_v = malloc(sizeof(int) * (num_threads + 1));
   start_v[num_threads] = n;
 #pragma omp parallel for schedule(static)
   for (int i = 0; i < num_threads; i++) {
@@ -61,23 +61,25 @@ void pagerank_omp(const int num_threads, const graph *g, const graph *converse,
       const int tid = omp_get_thread_num();
       // printf("%d %d %d\n", tid, start_v[tid], start_v[tid + 1]);
       for (int u = start_v[tid]; u < start_v[tid + 1]; u++) {
-        pr_new[u] = (1.0 - damping) / n + dangling_contrib;
+        double sum = (1.0 - damping) / n + dangling_contrib;
         for (int i = converse->offset[u]; i < converse->offset[u + 1]; i++) {
           const int v = converse->m[i].v;
           const double w = converse->m[i].w;
-          pr_new[u] += damping * pr[v] * (w / out_w[v]);
+          sum += damping * pr[v] * (w / out_w[v]);
         }
+        pr_new[u] = sum;
       }
     }
 
 // #pragma omp parallel for schedule(dynamic, 16)
 //     for (int u = 0; u < n; u++) {
-//       pr_new[u] = (1.0 - damping) / n + dangling_contrib;
+//       double sum = (1.0 - damping) / n + dangling_contrib;
 //       for (int i = converse->offset[u]; i < converse->offset[u + 1]; i++) {
 //         const int v = converse->m[i].v;
 //         const double w = converse->m[i].w;
-//         pr_new[u] += damping * pr[v] * (w / out_w[v]);
+//         sum += damping * pr[v] * (w / out_w[v]);
 //       }
+//       pr_new[u] = sum;
 //     }
 
     double diff = 0.0;
