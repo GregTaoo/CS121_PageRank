@@ -1,19 +1,18 @@
 #include <math.h>
 #include <omp.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "graph.h"
 
-int lower_bound(const int *a, int left, int right, int mid, const int value) {
+int lower_bound(const int *a, int left, int right, const int value) {
   // [left, right)
   while (left < right) {
+    const int mid = left + (right - left) / 2;
     if (a[mid] < value)
       left = mid + 1;
     else
       right = mid;
-    mid = left + (right - left) / 2;
   }
   return left & ~15;
 }
@@ -34,8 +33,7 @@ void pagerank_omp(const int num_threads, const graph *g, const graph *converse,
   start_v[num_threads] = n;
 #pragma omp parallel for schedule(static)
   for (int i = 0; i < num_threads; i++) {
-    start_v[i] = lower_bound(converse->offset, 0, n + 1, i * n / num_threads, i * e / num_threads);
-    // printf("start_v[%d] = %d, %d\n", i, start_v[i], converse->offset[start_v[i]]);
+    start_v[i] = lower_bound(converse->offset, 0, n + 1, i * e / num_threads);
   }
 
 #pragma omp parallel
@@ -58,25 +56,25 @@ void pagerank_omp(const int num_threads, const graph *g, const graph *converse,
 //       out_w[u] += g->m[i].w;
 //     }
 //   }
-
-  for (int iter = 0; iter < max_iter; iter++) {
-    double dangling_sum = 0.0;
+  double dangling_sum = 0.0;
 
 #pragma omp parallel for schedule(static) reduction(+: dangling_sum)
-    for (int i = 0; i < n; i++) {
-      if (out_w[i] == 0) {
-        // dangling node
-        dangling_sum += pr[i];
-      }
+  for (int i = 0; i < n; i++) {
+    if (out_w[i] == 0) {
+      // dangling node
+      dangling_sum += pr[i];
     }
+  }
 
+  for (int iter = 0; iter < max_iter; iter++) {
     const double dangling_contrib = damping * dangling_sum / n;
     double diff = 0.0;
+    double new_dangling_sum = 0.0;
 
-#pragma omp parallel reduction(+: diff)
+#pragma omp parallel reduction(+: diff, new_dangling_sum)
     {
       const int tid = omp_get_thread_num();
-      double local_diff = 0.0;
+      double local_diff = 0.0, local_dangling_sum = 0.0;
       // printf("%d %d %d\n", tid, start_v[tid], start_v[tid + 1]);
       for (int u = start_v[tid]; u < start_v[tid + 1]; u++) {
         const int start = converse->offset[u];
@@ -89,8 +87,13 @@ void pagerank_omp(const int num_threads, const graph *g, const graph *converse,
         }
         pr_new[u] = sum;
         local_diff += fabs(sum - pr[u]);
+        // dangling node
+        if (out_w[u] == 0) {
+          local_dangling_sum += pr_new[u];
+        }
       }
       diff += local_diff;
+      new_dangling_sum += local_dangling_sum;
     }
 
 // #pragma omp parallel for schedule(dynamic, 16)
@@ -103,7 +106,6 @@ void pagerank_omp(const int num_threads, const graph *g, const graph *converse,
 //       }
 //       pr_new[u] = sum;
 //     }
-
 // #pragma omp parallel for schedule(static) reduction(+: diff)
 //     for (int i = 0; i < n; i++) {
 //       diff += fabs(sum - pr[u]);
@@ -112,6 +114,7 @@ void pagerank_omp(const int num_threads, const graph *g, const graph *converse,
     double *tmp = pr_new;
     pr_new = pr;
     pr = tmp;
+    dangling_sum = new_dangling_sum;
 
     if (diff < eps) {
       // printf("Converged at iter %d\n", iter);
