@@ -6,22 +6,41 @@
 #include "graph.h"
 #include "util.h"
 #include "pagerank_serial.h"
+#include "pagerank_omp.h"
 
 #define DAMPING 0.85
 #define EPS 1e-6
 #define MAX_ITER 1000000
 
-double run_serial(const graph *graph, char **url_map) {
-  double *pr = malloc(sizeof(double) * graph->v);
+double run_serial(const graph *g, char **url_map) {
+  double *pr = malloc(sizeof(double) * g->v);
 
   const double start_time = omp_get_wtime();
 
-  pagerank_serial(graph, DAMPING, EPS, MAX_ITER, pr);
+  pagerank_serial(g, DAMPING, EPS, MAX_ITER, pr);
 
   const double total_time = omp_get_wtime() - start_time;
-  print_top_k_pr(pr, url_map, graph->v, 15);
-  printf("Total time: %f\n", total_time);
+  print_top_k_pr(pr, url_map, g->v, 5);
+  printf("Serial time: %f\n", total_time);
 
+  free(pr);
+
+  return total_time;
+}
+
+double run_omp(const graph *g, char **url_map, const int num_threads) {
+  double *pr = malloc(sizeof(double) * g->v);
+
+  graph *converse = build_converse_digraph(g);
+  const double start_time = omp_get_wtime();
+
+  pagerank_omp(num_threads, g, converse, DAMPING, EPS, MAX_ITER, pr);
+
+  const double total_time = omp_get_wtime() - start_time;
+  print_top_k_pr(pr, url_map, g->v, 5);
+  printf("Parallel time: %f\n", total_time);
+
+  free_graph(converse);
   free(pr);
 
   return total_time;
@@ -45,6 +64,7 @@ int main(const int argc, char **argv) {
   printf("Read graph from %s: %d vertices, %d edges\n", input_file, graph->v, graph->e);
 
   run_serial(graph, url_map);
+  run_omp(graph, url_map, num_threads);
 
   free_url_map(url_map, url_map_size);
   free_graph(graph);

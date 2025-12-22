@@ -78,7 +78,6 @@ graph* read_graph_file(const char *filename) {
   g->e        = is_symmetric ? 2 * L : L;
   g->m        = (struct Edge*) malloc(sizeof(struct Edge) * g->e);
 
-  bool exists_zero = false;
   int u, v, w = 1;
   for (int i = 0; i < L; i++) {
     if (fscanf(f, "%d %d", &u, &v) != 2) {
@@ -115,6 +114,23 @@ graph* read_graph_file(const char *filename) {
   assert(g->m != NULL);
   assert(g->offset != NULL);
   return g;
+}
+
+graph* build_converse_digraph(const graph *g) {
+  graph *converse = malloc(sizeof(graph));
+  converse->v     = g->v;
+  converse->e     = g->e;
+  converse->m     = (struct Edge*) malloc(sizeof(struct Edge) * g->e);
+
+  for (int i = 0; i < g->e; i++) {
+    converse->m[i].u = g->m[i].v;
+    converse->m[i].v = g->m[i].u;
+    converse->m[i].w = g->m[i].w;
+  }
+
+  sort_graph_edges(converse);
+
+  return converse;
 }
 
 void free_graph(graph *g) {
