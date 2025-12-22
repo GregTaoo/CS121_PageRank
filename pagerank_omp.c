@@ -5,7 +5,8 @@
 
 #include "graph.h"
 
-void pagerank_omp(const int num_threads, const graph *g, const graph *converse, const double damping, const double eps, const int max_iter, double *pr) {
+void pagerank_omp(const int num_threads, const graph *g, const graph *converse,
+                  const double damping, const double eps, const int max_iter, double *pr) {
   omp_set_num_threads(num_threads);
 
   const int n = g->v;
@@ -35,8 +36,8 @@ void pagerank_omp(const int num_threads, const graph *g, const graph *converse, 
 
     const double dangling_contrib = damping * dangling_sum / n;
 
-    // 这里用 16 避免 False Sharing
-#pragma omp parallel for schedule(static, 16)
+    // 这里用 16 避免 False Sharing, 用 dynamic 负载均衡
+#pragma omp parallel for schedule(dynamic, 16)
     for (int u = 0; u < n; u++) {
       pr_new[u] = (1.0 - damping) / n + dangling_contrib;
       for (int i = converse->offset[u]; i < converse->offset[u + 1]; i++) {
