@@ -63,8 +63,16 @@ int main(const int argc, char **argv) {
 
   printf("Read graph from %s: %d vertices, %d edges\n", input_file, graph->v, graph->e);
 
-  run_serial(graph, url_map);
-  run_omp(graph, url_map, num_threads);
+  double serial_time = 0, parallel_time = 0;
+  for (int i = 0; i < repeat; i++) {
+    serial_time += run_serial(graph, url_map);
+    parallel_time += run_omp(graph, url_map, num_threads);
+  }
+  serial_time /= repeat;
+  parallel_time /= repeat;
+  printf("\nSerial time: %f\n", serial_time);
+  printf("Parallel time: %f\n", parallel_time);
+  printf("Speedup: %f\n", serial_time / parallel_time);
 
   free_url_map(url_map, url_map_size);
   free_graph(graph);
