@@ -23,7 +23,11 @@ void print_top_k_pr(const double *pr, char **url_map, const int n, const int k) 
   qsort(arr, n, sizeof(NodePR), cmp_pr_desc);
 
   for (int i = 0; i < k && i < n; i++) {
-    printf("Node %d, PageRank %.6f, URL %s\n", arr[i].index, arr[i].value, url_map[arr[i].index]);
+    if (url_map == NULL) {
+      printf("Node %d, PageRank %.6f\n", arr[i].index, arr[i].value);
+    } else {
+      printf("Node %d, PageRank %.6f, URL %s\n", arr[i].index, arr[i].value, url_map[arr[i].index]);
+    }
   }
 
   free(arr);

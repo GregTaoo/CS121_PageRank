@@ -4,7 +4,7 @@
 
 #include "graph.h"
 
-void pagerank_serial(const graph *g, const double damping, const double eps, const int max_iter, double *pr) {
+double *pagerank_serial(const graph *g, const double damping, const double eps, const int max_iter, double *pr) {
   const int n = g->v;
 
   double *pr_new = malloc(sizeof(double) * n);
@@ -58,4 +58,5 @@ void pagerank_serial(const graph *g, const double damping, const double eps, con
 
   free(pr_new);
   free(out_w);
+  return pr;
 }
