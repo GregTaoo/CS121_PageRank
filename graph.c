@@ -79,17 +79,15 @@ graph* read_graph_file(char *filename) {
   g->m        = (struct Edge*) malloc(sizeof(struct Edge) * g->e);
 
   bool exists_zero = false;
-  int u, v, w;
+  int u, v, w = 1;
   for (int i = 0; i < L; i++) {
-    if (fscanf(f, "%d %d %d", &u, &v, &w) != 3) {
-      fprintf(stderr, "Invalid entry at line %d\n", i+1);
+    if (fscanf(f, "%d %d", &u, &v) != 2) {
+      fprintf(stderr, "Invalid entry at line %d\n", i + 1);
       free(g->m);
       free(g);
       fclose(f);
       return NULL;
     }
-    if (u == 0 || v == 0)
-      exists_zero = true;
 
     g->m[i].u = u;
     g->m[i].v = v;
@@ -106,8 +104,7 @@ graph* read_graph_file(char *filename) {
     }
   }
 
-  if (!exists_zero)
-    g->v = M + 1;
+  g->v = M + 1;
 
   fclose(f);
 
