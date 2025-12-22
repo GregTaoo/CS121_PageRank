@@ -31,7 +31,7 @@ void sort_graph_edges(graph* g) {
   g->offset[g->v] = g->e;
 }
 
-graph* read_graph_file(char *filename) {
+graph* read_graph_file(const char *filename) {
   FILE *f = fopen(filename, "r");
   if (!f) {
     fprintf(stderr, "Cannot open file: %s\n", filename);
