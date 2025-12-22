@@ -5,15 +5,35 @@
 
 #include "graph.h"
 
+int lower_bound(const int *a, int left, int right, const int value) {
+  // [left, right)
+  while (left < right) {
+    const int mid = left + (right - left) / 2;
+    if (a[mid] < value)
+      left = mid + 1;
+    else
+      right = mid;
+  }
+  return left;
+}
+
 void pagerank_omp(const int num_threads, const graph *g, const graph *converse,
                   const double damping, const double eps, const int max_iter, double *pr) {
   omp_set_num_threads(num_threads);
 
   const int n = g->v;
+  const int e = converse->offset[n];
 
   double *pr_new = malloc(sizeof(double) * n);
   double *out_w  = malloc(sizeof(double) * n);
   memset(out_w, 0, sizeof(double) * n);
+
+  int *start_v = malloc(sizeof(int) * (num_threads + 1));
+  start_v[num_threads] = n;
+#pragma omp parallel for schedule(static)
+  for (int i = 0; i < num_threads; i++) {
+    start_v[i] = lower_bound(converse->offset, 0, n + 1, i * e / num_threads);
+  }
 
 #pragma omp parallel for schedule(static)
   for (int u = 0; u < n; u++) {
@@ -36,16 +56,29 @@ void pagerank_omp(const int num_threads, const graph *g, const graph *converse,
 
     const double dangling_contrib = damping * dangling_sum / n;
 
-    // 这里用 16 避免 False Sharing, 用 dynamic 负载均衡
-#pragma omp parallel for schedule(dynamic, 16)
-    for (int u = 0; u < n; u++) {
-      pr_new[u] = (1.0 - damping) / n + dangling_contrib;
-      for (int i = converse->offset[u]; i < converse->offset[u + 1]; i++) {
-        const int v = converse->m[i].v;
-        const double w = converse->m[i].w;
-        pr_new[u] += damping * pr[v] * (w / out_w[v]);
+#pragma omp parallel
+    {
+      const int tid = omp_get_thread_num();
+      // printf("%d %d %d\n", tid, start_v[tid], start_v[tid + 1]);
+      for (int u = start_v[tid]; u < start_v[tid + 1]; u++) {
+        pr_new[u] = (1.0 - damping) / n + dangling_contrib;
+        for (int i = converse->offset[u]; i < converse->offset[u + 1]; i++) {
+          const int v = converse->m[i].v;
+          const double w = converse->m[i].w;
+          pr_new[u] += damping * pr[v] * (w / out_w[v]);
+        }
       }
     }
+
+// #pragma omp parallel for schedule(dynamic, 16)
+//     for (int u = 0; u < n; u++) {
+//       pr_new[u] = (1.0 - damping) / n + dangling_contrib;
+//       for (int i = converse->offset[u]; i < converse->offset[u + 1]; i++) {
+//         const int v = converse->m[i].v;
+//         const double w = converse->m[i].w;
+//         pr_new[u] += damping * pr[v] * (w / out_w[v]);
+//       }
+//     }
 
     double diff = 0.0;
 #pragma omp parallel for schedule(static) reduction(+: diff)
@@ -63,6 +96,7 @@ void pagerank_omp(const int num_threads, const graph *g, const graph *converse,
     }
   }
 
+  free(start_v);
   free(pr_new);
   free(out_w);
 }
