@@ -6,14 +6,12 @@ import time
 import urllib.parse
 import posixpath
 
-# --- 配置参数 ---
 START_URL = "https://sist.shanghaitech.edu.cn/"
 MAX_PAGES = 100000
 DELAY = 0.1
 OUTPUT_FILE = "web_graph.txt"
 MAP_FILE = "url_map.txt"
 
-# 需要排除的文件后缀
 EXCLUDED_EXTENSIONS = (
     '.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico',
     '.pdf', '.doc', '.docx', '.ppt', '.zip', '.rar', '.exe', '.mp4', '.mp3'
@@ -42,17 +40,14 @@ class WebGraphCrawler:
         return self.url_to_id[url]
 
     def is_valid_url(self, url):
-        """检查 URL 是否有效且符合爬取规则"""
         parsed = urllib.parse.urlparse(url)
 
-        # 1. 必须是 http 或 https
         if parsed.scheme not in ['http', 'https']:
             return False
 
         if url.find('shanghaitech') == -1:
             return False
 
-        # 2. 排除静态资源后缀
         path = parsed.path.lower()
         if path.endswith(EXCLUDED_EXTENSIONS):
             return False
@@ -60,9 +55,6 @@ class WebGraphCrawler:
         return True
 
     def normalize_url(self, base_url, href):
-        """
-        关键函数：URL 规范化 + 彻底阻断 /a/a/a 递归
-        """
         href = href.strip()
         if not href:
             return None
@@ -70,7 +62,6 @@ class WebGraphCrawler:
         if href.startswith(('javascript:', 'mailto:', '#')):
             return None
 
-        # ⚠️ 关键点：一律使用「站点根」作为 base
         base_parsed = urllib.parse.urlparse(base_url)
         site_root = f"{base_parsed.scheme}://{base_parsed.netloc}/"
 
@@ -79,7 +70,6 @@ class WebGraphCrawler:
 
         parsed = urllib.parse.urlparse(full_url)
 
-        # 规范化 path，消灭 a/../a、a/a/a
         norm_path = posixpath.normpath(parsed.path)
         if not norm_path.startswith('/'):
             norm_path = '/' + norm_path
@@ -113,7 +103,6 @@ class WebGraphCrawler:
                 if not full_url:
                     continue
 
-                # 路径深度硬限制，防御异常站点
                 if urllib.parse.urlparse(full_url).path.count('/') > 12:
                     continue
 
@@ -127,7 +116,7 @@ class WebGraphCrawler:
             return []
 
     def run(self):
-        print(f"开始爬取，起始点: {self.start_url}")
+        print(f"Starting from: {self.start_url}")
 
         crawled_count = 0
 
@@ -142,13 +131,6 @@ class WebGraphCrawler:
             self.visited.add(current_url)
             crawled_count += 1
 
-            if crawled_count % 100 == 0:
-                print(
-                    f"已爬取: {crawled_count} 页 | "
-                    f"队列: {len(self.queue)} | "
-                    f"节点数: {self.next_id}"
-                )
-
             child_urls = self.fetch_links(current_url)
 
             for child_url in child_urls:
@@ -161,8 +143,6 @@ class WebGraphCrawler:
         self.save_results()
 
     def save_results(self):
-        print("\n爬取结束，正在保存数据...")
-
         with open(OUTPUT_FILE, 'w') as f:
             f.write(f"{self.next_id} {len(self.edges)} \n")
             for u, v in self.edges:
@@ -172,7 +152,7 @@ class WebGraphCrawler:
             for i in range(self.next_id):
                 f.write(f"{i} {self.id_to_url[i]}\n")
 
-        print(f"节点数: {self.next_id}, 边数: {len(self.edges)}")
+        print(f"V: {self.next_id}, E: {len(self.edges)}")
 
 if __name__ == "__main__":
     crawler = WebGraphCrawler(START_URL)
