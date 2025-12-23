@@ -25,35 +25,30 @@ double *pagerank_omp(const int num_threads, const graph *g, const graph *convers
     }
     out_w[u] = w;
   }
-  double dangling_sum = 0.0;
-
-#pragma omp parallel for schedule(static) reduction(+: dangling_sum)
-  for (int i = 0; i < n; i++) {
-    if (out_w[i] == 0) {
-      // dangling node
-      dangling_sum += pr[i];
-    }
-  }
 
   for (int iter = 0; iter < max_iter; iter++) {
-    const double dangling_contrib = damping * dangling_sum / n;
     double diff = 0.0;
-    double new_dangling_sum = 0.0;
+    double dangling_sum = 0.0;
+    double base_score = 0.0;
 
 #pragma omp parallel
     {
-#pragma omp for schedule(static)
+#pragma omp for schedule(static) reduction(+: dangling_sum)
       for (int i = 0; i < n; i++) {
-        if (out_w[i] > 0) {
+        if (out_w[i] != 0) {
           pr_normalized[i] = pr[i] * damping / (double) out_w[i];
         } else {
           pr_normalized[i] = 0.0;
+          dangling_sum += pr[i];
         }
       }
 
-#pragma omp for schedule(dynamic, 64)
+#pragma omp single
+      base_score = (1.0 - damping) / n + damping * dangling_sum / n;
+
+#pragma omp for schedule(dynamic, 64) reduction(+: diff)
       for (int u = 0; u < n; u++) {
-        double sum = (1.0 - damping) / n + dangling_contrib;
+        double sum = base_score;
         const int start = converse->offset[u], end = converse->offset[u + 1];
         for (int i = start; i < end; i++) {
           const int v = converse->m[i].v;
@@ -61,21 +56,13 @@ double *pagerank_omp(const int num_threads, const graph *g, const graph *convers
           sum += w * pr_normalized[v];
         }
         pr_new[u] = sum;
-      }
-
-#pragma omp for schedule(static) reduction(+: diff, new_dangling_sum)
-      for (int i = 0; i < n; i++) {
-        diff += fabs(pr_new[i] - pr[i]);
-        if (out_w[i] == 0) {
-          new_dangling_sum += pr_new[i];
-        }
+        diff += fabs(sum - pr[u]);
       }
     }
 
     double *tmp = pr_new;
     pr_new = pr;
     pr = tmp;
-    dangling_sum = new_dangling_sum;
 
     if (diff < eps) {
       break;
