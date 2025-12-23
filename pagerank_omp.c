@@ -12,10 +12,10 @@ double *pagerank_omp(const int num_threads, const graph *g, const graph *convers
   const int n = g->v;
   const double inv_n = 1.0 / n;
 
-  double *pr_new        = aligned_alloc(64, sizeof(double) * n);
-  double *pr_normalized = aligned_alloc(64, sizeof(double) * n);
-  // double *pr_new        = malloc(sizeof(double) * n);
-  // double *pr_normalized = malloc(sizeof(double) * n);
+  // double *pr_new        = aligned_alloc(64, sizeof(double) * n);
+  // double *pr_normalized = aligned_alloc(64, sizeof(double) * n);
+  double *pr_new        = malloc(sizeof(double) * n);
+  double *pr_normalized = malloc(sizeof(double) * n);
   int *out_w            = malloc(sizeof(int) * n);
   memset(out_w, 0, sizeof(int) * n);
 

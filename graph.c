@@ -78,9 +78,9 @@ graph* read_graph_file(const char *filename) {
   g->e        = is_symmetric ? 2 * L : L;
   g->m        = (struct Edge*) malloc(sizeof(struct Edge) * g->e);
 
-  int u, v, w = 1;
+  int u, v, w;
   for (int i = 0; i < L; i++) {
-    if (fscanf(f, "%d %d", &u, &v) != 2) {
+    if (fscanf(f, "%d %d %d", &u, &v, &w) != 3) {
       fprintf(stderr, "Invalid entry at line %d\n", i + 1);
       free(g->m);
       free(g);

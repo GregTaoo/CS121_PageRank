@@ -1,5 +1,5 @@
 CC ?= gcc
-CFLAGS ?= -O3 -Wall -Wextra -g -MMD -MP -fopenmp
+CFLAGS ?= -O2 -Wall -Wextra -g -MMD -MP -fopenmp
 LDFLAGS ?= -fopenmp
 TARGET ?= pagerank
 BUILD_DIR := build
