@@ -6,15 +6,15 @@
 #include "graph.h"
 
 double *pagerank_omp(const int num_threads, const graph *g, const graph *converse,
-                  const double damping, const double eps, const int max_iter, double *pr) {
+                     const double damping, const double eps, const int max_iter, double *pr) {
   omp_set_num_threads(num_threads);
 
   const int n = g->v;
 
-  double *pr_new = aligned_alloc(64, sizeof(double) * n);
-  int *out_w = malloc(sizeof(int) * n);
-  memset(out_w, 0, sizeof(int) * n);
+  double *pr_new        = aligned_alloc(64, sizeof(double) * n);
   double *pr_normalized = aligned_alloc(64, sizeof(double) * n);
+  int *out_w            = malloc(sizeof(int) * n);
+  memset(out_w, 0, sizeof(int) * n);
 
 #pragma omp parallel for schedule(static)
   for (int u = 0; u < n; u++) {
