@@ -38,7 +38,6 @@ double *pagerank_omp_balanced(const int num_threads, const graph *g, const graph
 #pragma omp parallel for schedule(static)
   for (int i = 0; i < num_threads; i++) {
     start_v[i] = lower_bound(converse->offset, 0, n + 1, i * e / num_threads);
-    // printf("%d %d\n", i, start_v[i]);
   }
 
 #pragma omp parallel for schedule(static)
@@ -88,20 +87,6 @@ double *pagerank_omp_balanced(const int num_threads, const graph *g, const graph
         local_diff += fabs(cur_diff);
       }
       diff += local_diff;
-
-// #pragma omp for schedule(dynamic, 64) reduction(+: diff)
-//       for (int u = 0; u < n; ++u) {
-//         double sum = base_score;
-//         const int start = converse->offset[u], end = converse->offset[u + 1];
-//         for (int i = start; i < end; ++i) {
-//           const int v = converse->m[i].v;
-//           const int w = converse->m[i].w;
-//           sum += w * pr_normalized[v];
-//         }
-//         pr_new[u] = sum;
-//         const double local_diff = sum - pr[u];
-//         diff += fabs(local_diff);
-//       }
     }
 
     double *tmp = pr_new;

@@ -52,7 +52,7 @@ double run_omp(const graph *g, const graph *converse, char **url_map, const int 
 }
 
 int main(const int argc, char **argv) {
-  if (!(argc == 4 || argc == 5)) {
+  if (!(argc == 5 || argc == 6)) {
     printf("Usage: pagerank <input_file> <num_threads> <repeat> <use_manual_load_balance> [url_map_file]");
   }
   srandom((unsigned) time(NULL));
