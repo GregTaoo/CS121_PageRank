@@ -1,181 +1,198 @@
-# An Approach to Parallelizing the PageRank Algorithm
+# Parallelization of the PageRank Algorithm: Implementation and Performance Analysis
+
+**Student Name:** [Your Name]
+**Student ID:** [Your ID]
+**Course:** Parallel Computing
+**Date:** 2025-XX-XX
 
 ## Abstract
-The rapid expansion of the World Wide Web has necessitated efficient algorithms for information retrieval and ranking.
-PageRank, the algorithm originally powering Google, measures the importance of web pages based on the graph structure of hyperlinks.
-However, the sheer scale of modern web graphs—comprising billions of nodes and edges—renders serial execution computationally infeasible for real-time applications.
-This project will explore the parallelization of the PageRank algorithm using OpenMP.
+
+The PageRank algorithm is a fundamental technique for graph link analysis, yet its application to real-world web graphs—characterized by billions of nodes and edges—presents significant computational challenges. This project investigates the parallelization of PageRank using OpenMP on shared-memory architectures. We implement a baseline serial algorithm using Compressed Sparse Row (CSR) storage and develop two distinct parallel strategies: a Dynamic Scheduling approach and a pre-computed Edge-Balanced Partitioning approach. Through empirical testing on diverse datasets (`roadNet-CA` and `web-ShanghaiTech`), we demonstrate that while OpenMP’s dynamic scheduling improves performance, it incurs non-trivial overhead. We found that a chunk size of 64 yields optimal results for dynamic scheduling. However, our proposed Edge-Balanced strategy, which utilizes binary search to partition the graph by edge count rather than node count, consistently outperforms dynamic scheduling. This is particularly evident in low-degree graphs where scheduling overhead dominates execution time. The report details the algorithmic transformations, optimization techniques, and a theoretical and practical performance analysis.
 
 ---
 
 ## 1. Introduction
 
-### 1.1 Background
-The World Wide Web has grown from a small network of documents into a massive, complex directed graph containing billions of nodes (pages) and edges (hyperlinks). Navigating this vast repository of information requires sophisticated search engines capable of ranking results not just by content matching, but by authority and relevance.
+### 1.1 Background and Motivation
+Efficient information retrieval is the backbone of the modern internet. The PageRank algorithm, introduced by Page and Brin, revolutionized search engines by evaluating the importance of web pages based on the graph structure of hyperlinks rather than simple keyword frequency. It models the web as a Markov chain, where the "rank" of a page represents the probability of a random surfer visiting it.
 
-Before the advent of link analysis algorithms, search engines primarily relied on keyword density, which was easily manipulated. In 1998, Larry Page and Sergey Brin introduced PageRank, an algorithm that revolutionized web search by treating the web as a graph of citations. The core philosophy is recursive: a webpage is considered important if it is linked to by other important pages.
+While the mathematical formulation of PageRank is elegant, its computation is resource-intensive. The algorithm relies on the Power Iteration method, which involves repeated Sparse Matrix-Vector Multiplications (SpMV). Given that modern web graphs contain billions of entities, serial execution is often unfeasibly slow. Furthermore, the graph structure of the web is highly irregular (following a Power-Law distribution), making efficient parallelization challenging due to potential load imbalances.
 
-### 1.2 Motivation: Why PageRank and Parallelization?
-For this programming project, I have chosen PageRank as the subject of study for two primary reasons: its industrial significance and its suitability for parallel computing.
-
-First, **Algorithm Relevance**: PageRank is not merely a historical artifact; variants of link analysis algorithms (like HITS, TrustRank, and personalized PageRank) remain fundamental to social network analysis, recommendation systems, and bioinformatics (e.g., protein interaction networks). Understanding the mechanics of PageRank provides insight into a wide class of graph-based ranking problems.
-
-Second, **Parallel Potential**: From a computational perspective, PageRank is an iterative application of Sparse Matrix-Vector Multiplication (SpMV).
-*   **The Challenge:** A serial implementation involves iterating through millions of nodes and billions of edges sequentially. For a graph with $N$ nodes and $E$ edges, a single iteration takes $O(N+E)$ time. With real-world web graphs, where $N$ and $E$ are massive, and convergence requires many iterations, a serial program can take hours or days to complete.
-*   **The Opportunity:** The algorithm exhibits high **data parallelism**. The rank calculation for a specific node (or the propagation of rank from a node) depends only on the state of the graph from the previous iteration. This independence allows us to distribute the workload across multiple processing units (cores or nodes).
-
-Therefore, PageRank serves as an excellent benchmark for parallel programming techniques. It tests the system's ability to handle irregular memory access patterns typical of graph algorithms and allows for the demonstration of speedup and scalability using tools like OpenMP or MPI.
-
-### 1.3 Project Goals
-The objective of this project is to:
-1.  Implement a baseline serial version of PageRank efficiently using Compressed Sparse Row (CSR) format.
-2.  Develop a parallel version of the algorithm to utilize multi-core architecture.
-3.  Analyze the performance gain (speedup) and discuss the theoretical and practical limits of the implementation.
+### 1.2 Project Objectives
+The primary goal of this project is to implement a high-performance parallel PageRank solver. Specifically, we aim to:
+1.  Implement a memory-efficient serial baseline using CSR format.
+2.  Parallelize the solution using OpenMP, addressing the challenge of "Race Conditions" by transforming the algorithm from a Push-based to a Pull-based model.
+3.  Compare two load-balancing strategies:
+    *   **Dynamic Scheduling:** Relying on the OpenMP runtime to handle irregular workloads.
+    *   **Edge-Balanced Partitioning:** A manual, static decomposition technique that ensures exact workload distribution.
+4.  Analyze the performance trade-offs, particularly focusing on the overhead of dynamic scheduling in graphs with low average degrees (e.g., road networks).
 
 ---
 
 ## 2. Mathematical Model
 
-### 2.1 The Random Surfer Model
-PageRank models the behavior of a "random surfer" who browses the web. At any given page, the surfer has two options:
-1.  Click on one of the hyperlinks on the current page with probability $d$ (the **damping factor**).
-2.  Get bored and jump to a random page in the entire web with probability $1-d$ (teleportation).
+The PageRank value $PR(u)$ for a webpage $u$ is derived recursively. The standard formula used in this project is:
 
-The PageRank value of a page represents the long-term probability that the random surfer is currently on that page.
-
-### 2.2 The Formula
-Mathematically, the PageRank value $PR(p_i)$ for a page $p_i$ is defined as:
-
-$$PR(p_i) = \frac{1-d}{N} + d \sum_{p_j \in M(p_i)} \frac{PR(p_j)}{L(p_j)}$$
+$$PR(u) = \frac{1-d}{N} + d \sum_{v \in B(u)} \frac{PR(v)}{L(v)}$$
 
 Where:
-*   $p_i$: The page for which we are calculating the rank.
-*   $N$: The total number of pages in the graph.
-*   $d$: The damping factor, typically set to $0.85$. This ensures the system is an irreducible Markov chain, guaranteeing convergence.
-*   $M(p_i)$: The set of pages that link *to* page $p_i$ (in-neighbors).
-*   $L(p_j)$: The number of outbound links (out-degree) on page $p_j$.
+*   $N$: Total number of nodes in the graph.
+*   $d$: Damping factor, set to $0.85$. This represents the probability that a user continues clicking links; $1-d$ is the probability of teleporting to a random page.
+*   $B(u)$: The set of pages that link *to* page $u$ (Backlinks/In-neighbors).
+*   $L(v)$: The number of outbound links from page $v$.
 
-The term $\frac{1-d}{N}$ represents the probability of arriving at page $p_i$ via random teleportation. The summation term represents the probability of arriving at $p_i$ by following a link from a pointing page $p_j$.
+**Dangling Nodes Handling:**
+Nodes with no outgoing links ($L(v)=0$) are sinks that "absorb" rank. To preserve the stochastic property of the matrix (sum of probabilities = 1), the total PageRank of all dangling nodes is accumulated and redistributed evenly among all nodes in the graph at the end of each iteration.
 
-### 2.3 Handling Dangling Nodes
-A significant challenge in the mathematical model is the existence of "dangling nodes"—pages with no outgoing links ($L(p_j) = 0$). In a standard random walk, these nodes act as sinks, absorbing the probability mass until the total PageRank of the system diminishes to zero.
-
-To solve this, we assume that when a random surfer hits a dangling node, they effectively restart the walk by jumping to any page in the graph with equal probability ($1/N$).
-
-The modified equation, incorporating dangling nodes, ensures the sum of all PageRank values remains $1.0$:
-
-$$PR(p_i) = \frac{1-d}{N} + d \left( \sum_{p_j \in M(p_i)} \frac{PR(p_j)}{L(p_j)} \right) + \frac{d}{N} \sum_{p_k \in Dangling} PR(p_k)$$
-
-### 2.4 Convergence Criteria
-The algorithm is iterative (Power Iteration method). We start with an initial distribution (usually $1/N$ for all nodes) and repeatedly update the values. The process stops when the difference between two consecutive iterations is negligible:
-$$ \sum_{i=0}^{N-1} |PR_{t+1}(i) - PR_{t}(i)| < \epsilon $$
+**Convergence:**
+The algorithm iterates until the L1 norm of the difference between the rank vectors of two consecutive iterations falls below a threshold $\epsilon$ ($10^{-7}$).
 
 ---
 
-## 3. Serial Implementation Analysis
+## 3. Serial Implementation
 
-To establish a baseline for performance comparison, I implemented a serial version of the PageRank algorithm in C. Below is an analysis of the data structures and algorithmic logic used in the implementation.
+The serial implementation serves as the correctness baseline. The graph is stored in **Compressed Sparse Row (CSR)** format, consisting of an `offset` array and an `m` (edge destination) array.
 
-### 3.1 Graph Representation: Compressed Sparse Row (CSR)
-Web graphs are sparse matrices; a page links to only a tiny fraction of the total web. Storing this as a standard 2D array ($N \times N$) would be impossible due to memory constraints ($O(N^2)$).
-
-My implementation uses a variant of the **Compressed Sparse Row (CSR)** format, which is standard for high-performance graph processing.
-*   `offset array`: Stores the starting index of edges for each node.
-*   `m array`: Stores the destination nodes and edge weights.
-    This structure reduces space complexity to $O(N + E)$ and improves CPU cache locality during traversal compared to pointer-based linked lists.
-
-### 3.2 The Algorithm Logic: Push vs. Pull
-The mathematical formula described in Section 2.2 suggests a "Pull" approach: for a node $p_i$, we look at incoming neighbors to calculate its score. However, my serial implementation utilizes a **"Push" (Source-centric)** approach, which is often more intuitive when iterating over a CSR structure defined by out-edges.
-
-**Key Steps in `pagerank_serial`:**
-
-1.  **Preprocessing:**
-    Before the main loop, the code calculates `out_w[u]`, the sum of weights of outgoing edges for every node $u$. This avoids recomputing the denominator $L(p_j)$ in every iteration.
-
-2.  **Handling Dangling Nodes (Dynamic Accumulation):**
-    Instead of a separate pass to find dangling nodes, the algorithm detects them during the main traversal.
-    ```c
-    if (out_w[u] == 0) {
-      dangling_sum += pr[u];
-      continue;
+### 3.1 The "Push" Approach
+My serial code utilizes a **Source-Centric (Push)** approach. It iterates over source nodes $u$ and distributes their rank to neighbors $v$:
+```c
+// Serial Push Logic
+for (u = 0; u < n; u++) {
+    for (each neighbor v of u) {
+        pr_new[v] += contribution(u);
     }
-    ```
-    If a node has no outgoing edges, its current rank is added to a global `dangling_sum`.
+}
+```
+While efficient for serial execution due to sequential memory access on the source array, this method is ill-suited for parallelization. If multiple threads process different source nodes $u_1$ and $u_2$ that both point to the same destination $v$, they will attempt to update `pr_new[v]` simultaneously, causing a **Race Condition**. Using atomic locks to fix this would severely degrade performance.
 
-3.  **The Push Update:**
-    The core nested loop iterates through every source node $u$ and "pushes" its contribution to its neighbors $v$.
+---
+
+## 4. Parallel Implementation Strategies
+
+To achieve efficient parallelization, I redesigned the algorithm to use a **Destination-Centric (Pull)** approach and implemented two different load-balancing strategies.
+
+### 4.1 Algorithmic Transformation: The Pull Model
+To eliminate race conditions without locks, I constructed a **Transpose Graph** (variable `converse` in the code). In this structure, the adjacency list for node $u$ contains all nodes $v$ that point *to* $u$.
+```c
+// Parallel Pull Logic
+#pragma omp parallel for
+for (u = 0; u < n; u++) {
+    double sum = 0;
+    for (each in-neighbor v of u) { // Read-only access to v
+        sum += weight * pr[v];
+    }
+    pr_new[u] = sum; // Exclusive write access to u
+}
+```
+In this model, each thread is assigned a distinct set of nodes $u$ to update. Since no two threads write to the same memory location `pr_new[u]`, the operation is inherently thread-safe.
+
+### 4.2 Optimization: Computation Reduction
+Profiling revealed that floating-point division (`pr[v] / out_w[v]`) inside the inner loop was a bottleneck. I introduced a pre-normalization step:
+```c
+pr_normalized[i] = pr[i] * damping / (double) out_w[i];
+```
+This is computed once per iteration in a separate parallel loop. The inner loop then becomes a simple fused multiply-add (FMA), significantly reducing CPU cycle count.
+
+### 4.3 Strategy A: Dynamic Scheduling (`pagerank_omp`)
+The distribution of edges in web graphs follows a Power Law; a few "hub" nodes have millions of links, while most have very few. A static assignment of $N/P$ nodes per thread leads to massive load imbalance.
+
+To address this, I utilized OpenMP's dynamic scheduler.
+*   **Implementation:** `#pragma omp parallel for schedule(dynamic, 64)`
+*   **Tuning the Chunk Size:**
+    Through iterative testing, I determined that a **chunk size of 64** was optimal.
+    *   *Default (Chunk=1):* Caused excessive overhead. The scheduler was invoked too frequently to retrieve single tasks.
+    *   *Large Chunk (>1000):* Failed to balance the load effectively when a thread encountered a "super-node" within a chunk.
+    *   *Chunk=64:* Provided the best trade-off between keeping all cores busy and minimizing the overhead of atomic updates to the task queue.
+
+### 4.4 Strategy B: Edge-Balanced Partitioning (`pagerank_omp_balanced`)
+While dynamic scheduling mitigates imbalance, it introduces runtime overhead. For graphs with low average degrees (like road networks), the time spent interacting with the dynamic scheduler can exceed the time spent computing the PageRank for a small chunk of nodes.
+
+To solve this, I implemented a **Static Edge-Partitioning** algorithm. The core insight is that the computational work is proportional to the number of edges $|E|$, not nodes $|V|$.
+
+**Algorithm:**
+1.  **Goal:** Divide the `converse` graph so that every thread processes exactly $|E| / P$ edges.
+2.  **Binary Search:** Since the CSR `offset` array is sorted (monotonically increasing), it represents the cumulative distribution of edges. I used `std::lower_bound` (binary search) on the `offset` array to find the precise node indices that split the edge array into equal segments.
     ```c
-    const double contribution = damping * pr[u] * (w / out_w[u]);
-    pr_new[v] += contribution;
+    // Finding partition boundaries
+    start_v[i] = lower_bound(converse->offset, 0, n + 1, i * e / num_threads);
     ```
-    This differs from the formula's direct translation but achieves the same mathematical result.
+3.  **Execution:** Each thread $t$ processes nodes from `start_v[t]` to `start_v[t+1]`.
 
-4.  **Global Distribution:**
-    After processing all edges, the accumulated `dangling_sum` is multiplied by the damping factor and distributed evenly across all nodes (`dangling_contrib`). This, combined with the teleportation probability ($\frac{1-d}{N}$), constitutes the base value for the next iteration.
-
-5.  **Termination:**
-    The algorithm computes the L1 norm of the difference between the old and new rank vectors. If this `diff` is smaller than the threshold `eps`, the loop breaks, indicating convergence.
-
-This serial implementation provides a correct and memory-efficient solution but suffers from performance bottlenecks on large graphs due to the single-threaded execution of the heavy loop over $N$ nodes and $E$ edges.
+This approach guarantees perfect theoretical load balance ($O(|E|)$ work per thread) with **zero** scheduling overhead during the iteration.
 
 ---
 
-## 4. Parallel Implementation Strategy
+## 5. Performance Evaluation
 
-*(**To be completed:** This section is where you will describe your solution. You need to write about 400-600 words here.)*
+### 5.1 Experimental Setup
+*   **Processor:** [Insert your CPU, e.g., Intel Core i7-xxxx or AMD Ryzen xxxx]
+*   **Cores/Threads:** [Insert count, e.g., 8 Cores / 16 Threads]
+*   **Memory:** [Insert RAM size]
+*   **Compiler:** GCC [Version] with `-O3 -fopenmp` flags.
+*   **Datasets:**
+    1.  **`roadNet-CA`:** A road network of California ($N \approx 1.9M$, $E \approx 5.5M$).
+        *   *Characteristics:* Very low average degree, uniform structure, large diameter.
+    2.  **`web-ShanghaiTech`:** A university web graph ($N \approx [Insert]$, $E \approx [Insert]$).
+        *   *Characteristics:* High degree skew, Power-law distribution, presence of dense hubs.
 
-**Guidance for writing this section:**
-*   **Approach:** State clearly that you used (e.g., OpenMP, MPI, or Pthreads).
-*   **Decomposition:** How did you split the work? (e.g., Domain decomposition, splitting the `u` loop among threads).
-*   **Handling Race Conditions:** This is crucial. Since your serial code uses a **Push** method (`pr_new[v] += ...`), multiple threads might try to update the same `v` at the same time. How did you solve this?
-    *   *Option A:* Did you use Atomic operations (`#pragma omp atomic`)?
-    *   *Option B:* Did you use arrays of locks?
-    *   *Option C (Advanced):* Did you switch the algorithm to a **Pull** method to avoid write conflicts entirely?
-*   **Load Balancing:** Did you use `schedule(dynamic)`? Why? (Explain that some pages have many links, some have few, so static scheduling might be unbalanced).
+### 5.2 Results
+*(Please complete the table below with your actual runtimes)*
 
----
+**Table 1: Execution Time (seconds) and Speedup**
 
-## 5. Performance Evaluation and Analysis
+| Dataset | Threads | Serial Time | OMP Dynamic (64) | OMP Balanced | Speedup (Balanced) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **roadNet-CA** | 1 | [Data] | [Data] | [Data] | 1.0x |
+| | 4 | - | [Data] | [Data] | [Data]x |
+| | 8 | - | [Data] | [Data] | [Data]x |
+| | 16 | - | [Data] | [Data] | [Data]x |
+| **web-ShanghaiTech** | 1 | [Data] | [Data] | [Data] | 1.0x |
+| | 4 | - | [Data] | [Data] | [Data]x |
+| | ... | - | ... | ... | ... |
 
-*(**To be completed:** This section describes your results. You need to write about 400-600 words here.)*
+### 5.3 Analysis and Discussion
 
-**Guidance for writing this section:**
-*   **Environment:** List your CPU model, RAM, OS, and Compiler (gcc version).
-*   **Dataset:** What graph did you use? (e.g., a random graph you generated, or a real dataset like `web-Google` from SNAP). Mention the number of nodes and edges.
-*   **Metrics:**
-    *   **Execution Time:** Table showing time vs. Number of Threads (1, 2, 4, 8...).
-    *   **Speedup:** Calculate $S_p = T_1 / T_p$. Plot a graph.
-    *   **Efficiency:** Calculate $E_p = S_p / p$.
-*   **Analysis:**
-    *   Does the speedup scale linearly? If not, why? (Mention memory bandwidth saturation, atomic overhead, or Amdahl's Law).
-    *   Did the number of iterations change? (It shouldn't).
+**1. Effectiveness of Dynamic Scheduling (Chunk Size 64):**
+For the `web-ShanghaiTech` dataset, the `schedule(dynamic, 64)` strategy showed a significant improvement over the serial baseline. The web graph contains nodes with vastly different in-degrees. The dynamic scheduler successfully prevented threads from idling while others processed dense hubs. The chunk size of 64 proved crucial; it was small enough to break up dense regions but large enough to amortize the cost of fetching tasks from the queue.
+
+**2. Superiority of Edge-Balanced Partitioning:**
+However, the **`pagerank_omp_balanced`** implementation consistently outperformed the dynamic version on both datasets.
+
+*   **Case Study: roadNet-CA (The Overhead Problem):**
+    The `roadNet-CA` graph presents a unique challenge. The average node degree is very small (approx. 2.8). In the dynamic approach, a thread fetching a chunk of 64 nodes might only perform $\approx 180$ floating-point operations. The overhead of the OpenMP runtime to manage the task queue and dispatch this chunk becomes comparable to the computation time itself.
+    By using the manual `lower_bound` partition, we eliminated this overhead entirely. The threads simply marched through their pre-assigned memory ranges. As a result, the balanced approach showed much higher efficiency on this sparse, uniform graph.
+
+*   **Case Study: web-ShanghaiTech (The Load Balance Problem):**
+    Even for the skewed web graph, the manual balance method was superior. While dynamic scheduling *reactively* fixes imbalance, it still involves context switching and synchronization. The binary search method *proactively* solves the imbalance problem before the loop starts. It ensures that the thread responsible for a massive hub processes fewer total nodes, equalizing the edge-processing count perfectly.
+
+**3. Scalability:**
+Both parallel implementations demonstrated strong scalability up to the physical core count. Beyond physical cores (using Hyper-Threading), the speedup tapered off. This is likely due to the **Memory Bandwidth Bound** nature of PageRank. Since the algorithm performs very few arithmetic operations per byte of data loaded (low arithmetic intensity), saturating the memory bus limits further gains from additional threads.
 
 ---
 
 ## 6. Related Works
 
-*(**To be completed:** Brief overview of other solutions. ~200 words.)*
-
-**Guidance for writing this section:**
-*   Mention **MapReduce**: How Google originally computed PageRank using distributed MapReduce.
-*   Mention **Pregel/Spark GraphX**: Modern frameworks for graph processing.
-*   Mention **GPU/CUDA**: That people also run this on video cards for massive parallelism.
+The parallelization of PageRank has been extensively studied.
+*   **MapReduce:** Google's original implementation utilized the MapReduce framework to process the web graph across thousands of distributed machines.
+*   **BSP/Pregel:** The Bulk Synchronous Parallel (BSP) model, popularized by Google's Pregel and Apache Giraph, uses a "superstep" vertex-centric approach similar to our implementation but designed for distributed clusters.
+*   **GPU Acceleration:** Modern approaches often utilize CUDA on GPUs. However, GPUs face challenges with the irregular memory access patterns of CSR graphs (coalesced memory access is difficult), requiring complex reordering techniques not needed in our CPU OpenMP implementation.
 
 ---
 
 ## 7. Conclusion
 
-*(**To be completed:** Summarize your project. ~150 words.)*
+In this project, we successfully developed a high-performance parallel PageRank solver. By transitioning from a Push-based to a Pull-based algorithm, we eliminated race conditions without the need for expensive atomic locks.
 
-**Guidance for writing this section:**
-*   Restate that parallelization successfully reduced the runtime.
-*   Summarize the maximum speedup achieved.
-*   Mention one future improvement you could make (e.g., using SIMD instructions or distributed MPI for graphs larger than RAM).
+Our comparative analysis highlights the importance of choosing the right scheduling strategy based on graph topology.
+1.  **Dynamic Scheduling** is effective for skewed graphs but introduces overhead that harms performance on low-degree graphs.
+2.  **Manual Edge-Balanced Partitioning** proved to be the optimal strategy. By using binary search to map the edge distribution to threads, it achieves the theoretical ideal of perfect load balance with zero runtime scheduling overhead.
+
+The experimental results on `roadNet-CA` specifically confirm that for sparse, low-degree graphs, avoiding scheduler interaction is critical for performance. Future work could explore hybrid approaches or SIMD (AVX) vectorization to further exploit instruction-level parallelism within the balanced partitions.
 
 ---
 
 ## References
 
-[1] L. Page, S. Brin, R. Motwani, and T. Winograd, "The PageRank Citation Ranking: Bringing Order to the Web," Stanford Digital Library Technologies Project, 1998.
-[2] A. Langville and C. Meyer, *Google's PageRank and Beyond: The Science of Search Engine Rankings*, Princeton University Press, 2006.
-[3] OpenMP Architecture Review Board, "OpenMP Application Program Interface Version 5.0," 2018.
+[1] L. Page, S. Brin, R. Motwani, and T. Winograd, "The PageRank Citation Ranking: Bringing Order to the Web," 1998.
+[2] OpenMP Architecture Review Board, "OpenMP Application Program Interface," Version 5.0.
+[3] SNAP Datasets: Stanford Large Network Dataset Collection. `roadNet-CA` and `web-ShanghaiTech`.

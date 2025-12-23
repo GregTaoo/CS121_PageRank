@@ -61,7 +61,7 @@ int main(const int argc, char **argv) {
   const int num_threads = atoi(argv[2]);
   const int repeat = atoi(argv[3]);
   const int use_manual_load_balance = atoi(argv[4]);
-  const char *url_map_file = argc == 6 ? argv[4] : NULL;
+  const char *url_map_file = argc == 6 ? argv[5] : NULL;
 
   graph *g = read_graph_file(input_file);
   graph *converse = build_converse_digraph(g);
