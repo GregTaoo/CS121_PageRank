@@ -31,24 +31,27 @@ double *pagerank_omp_balanced(const int num_threads, const graph *g, const graph
   double *pr_new        = malloc(sizeof(double) * n);
   double *pr_normalized = malloc(sizeof(double) * n);
   int *out_w            = malloc(sizeof(int) * n);
-  memset(out_w, 0, sizeof(int) * n);
+  int *start_v          = malloc(sizeof(int) * (num_threads + 1));
 
-  int *start_v = malloc(sizeof(int) * (num_threads + 1));
   start_v[num_threads] = n;
 #pragma omp parallel for schedule(static)
   for (int i = 0; i < num_threads; i++) {
     start_v[i] = lower_bound(converse->offset, 0, n + 1, i * e / num_threads);
   }
 
-#pragma omp parallel for schedule(static)
-  for (int u = 0; u < n; ++u) {
-    const int start = g->offset[u], end = g->offset[u + 1];
-    int w = 0;
-    for (int i = start; i < end; ++i) {
-      w += g->m[i].w;
+#pragma omp parallel
+  {
+    const int tid = omp_get_thread_num();
+    const int end_v = start_v[tid + 1];
+    for (int u = start_v[tid]; u < end_v; u++) {
+      const int start = g->offset[u], end = g->offset[u + 1];
+      int w = 0;
+      for (int i = start; i < end; ++i) {
+        w += g->m[i].w;
+      }
+      out_w[u] = w;
+      pr[u] = inv_n;
     }
-    out_w[u] = w;
-    pr[u] = inv_n;
   }
 
   for (int iter = 0; iter < max_iter; ++iter) {
@@ -83,8 +86,7 @@ double *pagerank_omp_balanced(const int num_threads, const graph *g, const graph
           sum += w * pr_normalized[v];
         }
         pr_new[u] = sum;
-        const double cur_diff = sum - pr[u];
-        local_diff += fabs(cur_diff);
+        local_diff += fabs(sum - pr[u]);
       }
       diff += local_diff;
     }
