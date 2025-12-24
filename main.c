@@ -74,7 +74,7 @@ void benchmark() {
     "data/soc-LiveJournal1.mtx",
     "data/com-orkut.ungraph.mtx"
   };
-  static const int threads[] = {0, 1, 8};
+  static const int threads[] = {0, 1, 8, 15, 22, 29, 36, 43, 50, 57, 64};
   for (int graph_id = 0; graph_id < (int) (sizeof(data_files) / sizeof(char*)); graph_id++) {
     graph *g = read_graph_file(data_files[graph_id]);
     graph *converse = build_converse_digraph(g);
