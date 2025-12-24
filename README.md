@@ -1,10 +1,5 @@
 # Parallelization of the PageRank Algorithm: Implementation and Performance Analysis
 
-**Student Name:** [Your Name]
-**Student ID:** [Your ID]
-**Course:** Parallel Computing
-**Date:** 2025-XX-XX
-
 ## Abstract
 
 The PageRank algorithm is a fundamental technique for graph link analysis, yet its application to real-world web graphs—characterized by billions of nodes and edges—presents significant computational challenges. This project investigates the parallelization of PageRank using OpenMP on shared-memory architectures. We implement a baseline serial algorithm using Compressed Sparse Row (CSR) storage and develop two distinct parallel strategies: a Dynamic Scheduling approach and a pre-computed Edge-Balanced Partitioning approach. Through empirical testing on diverse datasets (`roadNet-CA` and `web-ShanghaiTech`), we demonstrate that while OpenMP’s dynamic scheduling improves performance, it incurs non-trivial overhead. We found that a chunk size of 64 yields optimal results for dynamic scheduling. However, our proposed Edge-Balanced strategy, which utilizes binary search to partition the graph by edge count rather than node count, consistently outperforms dynamic scheduling. This is particularly evident in low-degree graphs where scheduling overhead dominates execution time. The report details the algorithmic transformations, optimization techniques, and a theoretical and practical performance analysis.
