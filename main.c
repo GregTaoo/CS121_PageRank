@@ -1,4 +1,5 @@
 #include <omp.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -15,30 +16,36 @@
 #define EPS 1e-6
 #define MAX_ITER 1000000
 
-double run_serial(const graph *g, const graph *converse, char **url_map, const int mode) {
+double run_serial(const graph *g, const graph *converse, char **url_map, const int mode, bool verbose) {
   double *pr = malloc(sizeof(double) * g->v);
 
-  printf("Serial started\n");
+  if (verbose) {
+    printf("Serial started\n");
+  }
   const double start_time = omp_get_wtime();
 
   if (mode < 2)
-    pagerank_serial(g, DAMPING, EPS, MAX_ITER, pr);
+    pr = pagerank_serial(g, DAMPING, EPS, MAX_ITER, pr);
   else
-    pagerank_serial_approx(g, converse, DAMPING, EPS / 100, MAX_ITER, pr);
+    pr = pagerank_serial_approx(g, converse, DAMPING, EPS / 100, MAX_ITER, pr);
 
   const double total_time = omp_get_wtime() - start_time;
-  print_top_k_pr(pr, url_map, g->v, 5);
-  printf("Serial time: %f\n", total_time);
+  if (verbose) {
+    print_top_k_pr(pr, url_map, g->v, 5);
+    printf("Serial time: %f\n", total_time);
+  }
 
   free(pr);
 
   return total_time;
 }
 
-double run_omp(const graph *g, const graph *converse, char **url_map, const int num_threads, const int mode) {
+double run_omp(const graph *g, const graph *converse, char **url_map, const int num_threads, const int mode, bool verbose) {
   double *pr = malloc(sizeof(double) * g->v);
 
-  printf("Parallel started\n");
+  if (verbose) {
+    printf("Parallel started\n");
+  }
   const double start_time = omp_get_wtime();
 
   if (mode == 0)
@@ -49,15 +56,51 @@ double run_omp(const graph *g, const graph *converse, char **url_map, const int 
     pr = pagerank_omp_approx(num_threads, g, converse, DAMPING, EPS / 100, MAX_ITER, pr);
 
   const double total_time = omp_get_wtime() - start_time;
-  print_top_k_pr(pr, url_map, g->v, 5);
-  printf("Parallel time: %f\n", total_time);
+  if (verbose) {
+    print_top_k_pr(pr, url_map, g->v, 5);
+    printf("Parallel time: %f\n", total_time);
+  }
 
   free(pr);
 
   return total_time;
 }
 
+void benchmark() {
+  static const char *data_files[] = {
+    "data/web-Stanford.mtx",
+    "data/web-ShanghaiTech.mtx",
+    "data/roadNet-CA.mtx",
+    "data/soc-LiveJournal1.mtx",
+    "data/com-orkut.ungraph.mtx"
+  };
+  static const int threads[] = {0, 1, 8};
+  for (int graph_id = 0; graph_id < (int) (sizeof(data_files) / sizeof(char*)); graph_id++) {
+    graph *g = read_graph_file(data_files[graph_id]);
+    graph *converse = build_converse_digraph(g);
+    for (int i = 0; i < (int) (sizeof(threads) / sizeof(int)); i++) {
+      for (int mode = 0; mode <= 2; mode++) {
+          const int num_threads = threads[i];
+          double time = 0;
+          for (int j = 0; j < 20; j++) {
+            time += num_threads == 0 ? run_serial(g, converse, NULL, mode, false)
+                                     : run_omp(g, converse, NULL, num_threads, mode, false);
+          }
+          time /= 20;
+          printf("Dataset %s, %d Threads, Mode %d: %lfs\n", data_files[graph_id], num_threads, mode, time);
+      }
+    }
+    free_graph(converse);
+    free_graph(g);
+  }
+}
+
 int main(const int argc, char **argv) {
+  if (argc == 1) {
+    benchmark();
+    return 0;
+  }
+
   if (!(argc == 5 || argc == 6)) {
     printf("Usage: pagerank <input_file> <num_threads> <repeat> <0: dynamic; 1: balanced; 2: approx> [url_map_file]\n");
   }
@@ -78,8 +121,8 @@ int main(const int argc, char **argv) {
 
   double serial_time = 0, parallel_time = 0;
   for (int i = 0; i < repeat; i++) {
-    serial_time += run_serial(g, converse, url_map, mode);
-    parallel_time += run_omp(g, converse, url_map, num_threads, mode);
+    serial_time += run_serial(g, converse, url_map, mode, true);
+    parallel_time += run_omp(g, converse, url_map, num_threads, mode, true);
   }
   serial_time /= repeat;
   parallel_time /= repeat;
