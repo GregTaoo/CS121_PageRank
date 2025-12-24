@@ -80,14 +80,14 @@ void benchmark() {
     graph *converse = build_converse_digraph(g);
     for (int i = 0; i < (int) (sizeof(threads) / sizeof(int)); i++) {
       for (int mode = 0; mode <= 2; mode++) {
-          const int num_threads = threads[i];
-          double time = 0;
-          for (int j = 0; j < 20; j++) {
-            time += num_threads == 0 ? run_serial(g, converse, NULL, mode, false)
-                                     : run_omp(g, converse, NULL, num_threads, mode, false);
-          }
-          time /= 20;
-          printf("Dataset %s, %d Threads, Mode %d: %lfs\n", data_files[graph_id], num_threads, mode, time);
+        const int num_threads = threads[i];
+        double time = 0;
+        for (int j = 0; j < 20; j++) {
+          time += num_threads == 0 ? run_serial(g, converse, NULL, mode, false)
+                                   : run_omp(g, converse, NULL, num_threads, mode, false);
+        }
+        time /= 20;
+        printf("Dataset %s, %d Threads, Mode %d: %lfs\n", data_files[graph_id], num_threads, mode, time);
       }
     }
     free_graph(converse);
