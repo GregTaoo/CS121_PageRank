@@ -31,7 +31,7 @@ double run_serial(const graph *g, const graph *converse, char **url_map, const i
 
   const double total_time = omp_get_wtime() - start_time;
   if (verbose) {
-    print_top_k_pr(pr, url_map, g->v, 5);
+    print_top_k_pr(pr, url_map, g->v, 10);
     printf("Serial time: %f\n", total_time);
   }
 
@@ -57,7 +57,7 @@ double run_omp(const graph *g, const graph *converse, char **url_map, const int 
 
   const double total_time = omp_get_wtime() - start_time;
   if (verbose) {
-    print_top_k_pr(pr, url_map, g->v, 5);
+    print_top_k_pr(pr, url_map, g->v, 10);
     printf("Parallel time: %f\n", total_time);
   }
 

@@ -126,7 +126,7 @@ random memory accesses (cache misses). So I introduced a pre-calculation loop fo
 }
 ```
 
-- **Pros:** Robust against highly skewed degree distributions (like `web-ShanghaiTech`). It is easy to implement using
+- **Pros:** Robustness. It is easy to implement using
   standard OpenMP clauses.
 - **Cons:** **High Overhead.** For graphs with low average degrees (like `roadNet-CA`, where avg degree $\approx 2.5$),
   the computation inside the inner loop is trivial. The overhead of the OpenMP runtime managing the dynamic queue
@@ -259,8 +259,8 @@ OpenMP 201511
 | data/soc-LiveJournal1.mtx  | 4847571 | 68993773  | 14.23          |
 | data/com-orkut.ungraph.mtx | 3072441 | 117185083 | 38.14          |
 
-(`web-ShanghaiTech` is a dataset I crawled myself, starting from https://sist.shanghaitech.edu.cn. Code can be found in
-`spider.py`)
+`web-ShanghaiTech` is a dataset I crawled myself, starting from https://sist.shanghaitech.edu.cn. Code can be found in
+`spider.py`
 
 #### Strategy 1
 
