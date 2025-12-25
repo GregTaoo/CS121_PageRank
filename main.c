@@ -68,13 +68,15 @@ double run_omp(const graph *g, const graph *converse, char **url_map, const int 
 
 void benchmark() {
   static const char *data_files[] = {
+    "data/web-Google.mtx",
     "data/web-Stanford.mtx",
     "data/web-ShanghaiTech.mtx",
     "data/roadNet-CA.mtx",
     "data/soc-LiveJournal1.mtx",
     "data/com-orkut.ungraph.mtx"
   };
-  static const int threads[] = {0, 1, 8, 15, 22, 29, 36, 43, 50, 57, 64};
+  // static const int threads[] = {0, 1, 8, 15, 22, 29, 36, 43, 50, 57, 64};
+  static const int threads[] = {0, 1, 8, 15, 22, 29, 36, 43, 50, 57, 64, 65, 72, 79, 86, 93, 100, 107, 114, 121, 128};
   for (int graph_id = 0; graph_id < (int) (sizeof(data_files) / sizeof(char*)); graph_id++) {
     graph *g = read_graph_file(data_files[graph_id]);
     graph *converse = build_converse_digraph(g);
