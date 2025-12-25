@@ -343,15 +343,22 @@ neutralizes the workload imbalance caused by "super-nodes" without the runtime c
 
 ---
 
-## 5. Related Work and Future Optimizations
+## 5. Related Work
 
-The parallelization of PageRank is a well-studied field.
+The parallelization of PageRank is a well-studied field, with various frameworks addressing the challenges of irregular
+graph processing.
 
-- **Distributed Systems:** Google's original implementation relied on MapReduce to handle graphs larger than the memory
-  of a single machine. Modern equivalents use frameworks like Apache Spark (GraphX) or Google Pregel (BSP model).
-- **GPU Acceleration:** Implementation on GPUs (CUDA) is common but faces challenges with "warp divergence" due to
-  irregular graph structures. Our "Balanced" approach is conceptually similar to how GPUs assign threads to edges to
-  maintain coalesced memory access.
+*Ligra: A Lightweight Graph Processing Framework for Shared Memory* introduced an adaptive strategy for graph traversal.
+It dynamically switches between a sparse method (processing only active nodes) and a dense method (iterating over all
+destinations) based on the size of the active frontier. This hybrid approach allows the system to optimize memory
+bandwidth and computation for both sparse and dense phases of the algorithm.
+
+GPU Acceleration: Implementations on GPUs (e.g., using CUDA) exploit massive parallelism. However, they face performance
+challenges such as "warp divergence" and uncoalesced memory access due to the irregular structure of graph data.
+
+MapReduce: Google’s original implementation utilized the MapReduce framework to handle web-scale graphs that exceed the
+memory capacity of a single machine. This distributed approach focuses on fault tolerance and scalability across
+clusters, though it introduces significant network communication overhead compared to shared-memory solutions.
 
 ---
 
