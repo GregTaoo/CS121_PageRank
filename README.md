@@ -72,7 +72,7 @@ shared-memory systems. All implementations in this project are therefore based o
 I implemented three variations of the parallel PageRank algorithm to investigate the trade-offs between load balancing,
 scheduling overhead, and algorithmic efficiency.
 
-### 3.1 Implementation I: `pagerank_omp.c`
+### 3.1 Strategy 1: `pagerank_omp.c`
 
 Real-world graphs often exhibit Power-Law degree distributions, where a small number of hub nodes have extremely high
 degree while the majority of nodes have very few edges. Under such conditions, a naive static partitioning strategy (
@@ -132,7 +132,7 @@ random memory accesses (cache misses). So I introduced a pre-calculation loop fo
   the computation inside the inner loop is trivial. The overhead of the OpenMP runtime managing the dynamic queue
   becomes a dominant factor, limiting the maximum speedup.
 
-### 3.2 Implementation II: `pagerank_omp_balanced`
+### 3.2 Strategy 2: `pagerank_omp_balanced`
 
 To overcome the overhead of dynamic scheduling while maintaining load balance, I implemented a static partitioning
 strategy based on edge counts rather than node counts.
@@ -188,7 +188,7 @@ Inside the parallel region, each thread queries its ID (`tid`) and retrieves its
   Also, although the workload is theoretically evenly distributed, due to factors such as processor architecture, some
   cores may exhibit severe slowdown (see the performance analysis section below for details).
 
-### 3.3 Implementation III: `pagerank_omp_approx`
+### 3.3 Strategy 3: `pagerank_omp_approx`
 
 The standard PageRank algorithm updates *every* node in every iteration. However, as the algorithm progresses, many
 nodes converge quickly and their values stop changing. Updating these stable nodes wastes memory bandwidth. The third
@@ -308,17 +308,15 @@ OpenMP 201511
 
 The performance data reveals a distinct trade-off between scheduling overhead and memory access latency.
 
-For `roadNet-CA` and `web-ShanghaiTech`, **Strategy 2 (Edge-Balanced)** demonstrates dominant performance.
+For `roadNet-CA` and `web-ShanghaiTech`, **Strategy 2** demonstrates good performance.
 
-- On **`roadNet-CA`**, Strategy 2 achieves a **36.7x speedup**, significantly outperforming Strategy 1 (7.3x). This
-  graph has a very low average degree (1.41). The computational load per node is so small that the runtime overhead of
+- `roadNet-CA` has a very low average degree (1.41). The computational load per node is so small that the runtime overhead of
   the dynamic scheduler in Strategy 1 becomes the bottleneck.
-- On **`web-ShanghaiTech`**, Strategy 2 achieves **24.9x speedup** vs Strategy 1's 4.8x. This confirms that static job
+- `web-ShanghaiTech`. This confirms that static job
   distribution effectively neutralizes the load imbalance caused by "hub" nodes in Power-Law graphs (Since almost all
   pages would connect to the homepage), which node-based dynamic scheduling failed to handle efficiently.
 
-However, a significant performance degradation is observed for Strategy 2 on large-scale social networks like *
-*`com-orkut`** and **`soc-LiveJournal1`** (Check the figures below).
+However, a significant performance degradation is observed for Strategy 2 on large-scale social networks like **`com-orkut`** and **`soc-LiveJournal1`** (Check the figures below).
 Strategy 2 relies on static partitioning. Threads are assigned fixed ranges of the graph.
 Some threads inevitably process data located on a different NUMA node (or CPU die).
 Accessing the remote memory from different cores requires traversing the CPU interconnect bus, which incurs high
