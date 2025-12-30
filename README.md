@@ -220,7 +220,7 @@ for (int i = 0; i < frontier_size; i++) {
 // 2. Parallel Prefix Sum to calculate write positions
 omp_prefix_sum(next_idx_prefix, frontier_size, prefix_block_sum);
 
-// 3. Scatter
+// 3. Culling
 #pragma omp parallel for schedule(static)
 for (int i = 0; i < frontier_size; i++) {
   const int prev_val = (i == 0) ? 0 : next_idx_prefix[i - 1];
@@ -262,7 +262,7 @@ OpenMP 201511
 `web-ShanghaiTech` is a dataset I crawled myself, starting from https://sist.shanghaitech.edu.cn. Code can be found in
 `spider.py`
 
-#### Strategy 1
+#### Strategy 1 ($\epsilon=10^{-6}$)
 
 | Graph                      | Serial Time | 1 Thread Time | Threads Number | Parallel Time | Speedup | Scalability |
 |:---------------------------|:-----------:|:-------------:|:--------------:|:-------------:|:-------:|:-----------:|
@@ -273,7 +273,7 @@ OpenMP 201511
 | data/soc-LiveJournal1.mtx  |    18.68    |     16.64     |       64       |     0.94      |  19.85  |    17.68    |
 | data/com-orkut.ungraph.mtx |    9.16     |     8.73      |       57       |     0.47      |  19.45  |    18.56    |
 
-#### Strategy 2
+#### Strategy 2 ($\epsilon=10^{-6}$)
 
 | Graph                      | Serial Time | 1 Thread Time | Threads Number | Parallel Time | Speedup | Scalability |
 |:---------------------------|:-----------:|:-------------:|:--------------:|:-------------:|:-------:|:-----------:|
@@ -284,7 +284,7 @@ OpenMP 201511
 | data/soc-LiveJournal1.mtx  |    18.85    |     16.49     |       29       |     1.08      |  17.40  |    15.23    |
 | data/com-orkut.ungraph.mtx |    9.08     |     8.69      |       15       |     1.02      |  8.87   |    8.48     |
 
-#### Strategy 3
+#### Strategy 3 ($\epsilon=10^{-8}$)
 
 | Graph                      | Serial Time | 1 Thread Time | Threads Number | Parallel Time | Speedup | Scalability |
 |:---------------------------|:-----------:|:-------------:|:--------------:|:-------------:|:-------:|:-----------:|
