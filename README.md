@@ -297,6 +297,8 @@ OpenMP 201511
 
 #### Figures
 
+Scalability: 
+
 ![](image/web-Google.png)
 ![](image/web-Stanford.png)
 ![](image/web-ShanghaiTech.png)
@@ -304,17 +306,25 @@ OpenMP 201511
 ![](image/soc-LiveJournal1.png)
 ![](image/com-orkut.ungraph.png)
 
+Graph Degrees:
+
+![](image/degrees_web-Stanford.png)
+![](image/degrees_web-ShanghaiTech.png)
+![](image/degrees_roadNet-CA.png)
+![](image/degrees_soc-LiveJournal1.png)
+
+The distribution of `web-Stanford` is relatively uniform, whereas the distribution of `web-ShanghaiTech` is more skewed.
+
 ### Analysis of Results
 
 The performance data reveals a distinct trade-off between scheduling overhead and memory access latency.
 
-For `roadNet-CA` and `web-ShanghaiTech`, **Strategy 2** demonstrates good performance.
-
-- `roadNet-CA` has a very low average degree (1.41). The computational load per node is so small that the runtime overhead of
-  the dynamic scheduler in Strategy 1 becomes the bottleneck.
-- `web-ShanghaiTech`. This confirms that static job
-  distribution effectively neutralizes the load imbalance caused by "hub" nodes in Power-Law graphs (Since almost all
-  pages would connect to the homepage), which node-based dynamic scheduling failed to handle efficiently.
+For `roadNet-CA` and `web-ShanghaiTech`, Strategy 2 demonstrates good performance.
+`roadNet-CA` has a very low average degree (1.41). The computational load per node is so small that the runtime overhead of
+the dynamic scheduler in Strategy 1 becomes the bottleneck.
+For `web-ShanghaiTech`: This confirms that static job
+distribution effectively neutralizes the load imbalance caused by hub nodes in Power-Law graphs (Since almost all
+pages would connect to the homepage), which node-based dynamic scheduling failed to handle efficiently.
 
 However, a significant performance degradation is observed for Strategy 2 on large-scale social networks like **`com-orkut`** and **`soc-LiveJournal1`** (Check the figures below).
 Strategy 2 relies on static partitioning. Threads are assigned fixed ranges of the graph.
